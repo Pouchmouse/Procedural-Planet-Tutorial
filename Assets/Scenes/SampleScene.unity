@@ -149,7 +149,7 @@ Light:
     m_CustomResolution: -1
     m_Strength: 1
     m_Bias: 0.05
-    m_NormalBias: 0.4
+    m_NormalBias: 0
     m_NearPlane: 0.2
   m_Cookie: {fileID: 0}
   m_DrawHalo: 0
@@ -235,7 +235,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.3
-  far clip plane: 1000
+  far clip plane: 10
   field of view: 60
   orthographic: 0
   orthographic size: 5
@@ -294,9 +294,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c891389222151774f9fb44cd74ef5566, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_Material: {fileID: 2100000, guid: 4df8d1aaee8737d46b73a23f8db8f656, type: 2}
-  m_NumberOfContinents: 7
-  m_ContinentSizeMax: 1
+  m_GroundMaterial: {fileID: 2100000, guid: 4df8d1aaee8737d46b73a23f8db8f656, type: 2}
+  m_OceanMaterial: {fileID: 2100000, guid: 297c693a57253724c881afe6c7ac126c, type: 2}
+  m_NumberOfContinents: 20
+  m_ContinentSizeMax: 0.3
   m_ContinentSizeMin: 0.1
   m_NumberOfHills: 10
   m_HillSizeMax: 0.2

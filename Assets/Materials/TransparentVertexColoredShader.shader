@@ -1,11 +1,11 @@
-﻿Shader "Custom/VertexColoredShader"
+﻿Shader "Custom/TransparentVertexColoredShader"
  {
     Properties{
         _Color("Color", Color) = (1,1,1,1)
         _MainTex("Albedo (RGB)", 2D) = "white" {}
         _Glossiness("Smoothness", Range(0,1)) = 0.5
         _Metallic("Metallic", Range(0,1)) = 0.0
-		_AmbientOcclusionIntensity("Ambient Occlusion Intensity", Range(0,1)) = 0.5
+        _Alpha("Alpha", Range(0,1)) = 0.5
     }
     SubShader{
         Tags{ "RenderType" = "Opaque"}
@@ -14,7 +14,7 @@
 
         CGPROGRAM
         // Physically based Standard lighting model, and enable shadows on all light types
-#pragma surface surf Standard fullforwardshadows addshadow
+#pragma surface surf Standard fullforwardshadows addshadow alpha
 
         // Use shader model 3.0 target, to get nicer looking lighting
 #pragma target 3.0
@@ -30,17 +30,19 @@
         half   _Metallic;
         fixed4 _Color;
 		half   _Alpha;
-		half   _AmbientOcclusionIntensity;
 
         void surf(Input IN, inout SurfaceOutputStandard o) 
         {                        
             fixed4 c = IN.color;
+			c.a = _Alpha;
 
-			float ambientOcclusionStrength = IN.uv_MainTex.y;
+			float  waveStrength = IN.uv_MainTex.y * (sin(_Time.y * 2.0) * 0.5f + 0.5f);
+			fixed4 waveColor    = fixed4(1.0,1.0,1.0,1.0);
 
-            o.Albedo     = c * lerp(1.0, (1.0f - _AmbientOcclusionIntensity), ambientOcclusionStrength);
-            o.Metallic   = _Metallic;
+            o.Albedo = lerp(c, waveColor, waveStrength);
+            o.Metallic = _Metallic;
             o.Smoothness = _Glossiness;
+            o.Alpha = c.a;
         }
         ENDCG
         }

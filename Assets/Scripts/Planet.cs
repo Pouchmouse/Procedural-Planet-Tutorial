@@ -10,7 +10,8 @@ public class Planet : MonoBehaviour
 {
     // These public parameters can be tweaked to give different styles to your planet.
 
-    public Material m_Material;
+    public Material m_GroundMaterial;
+    public Material m_OceanMaterial;
 
     public int   m_NumberOfContinents = 5;
     public float m_ContinentSizeMax   = 1.0f;
@@ -20,8 +21,9 @@ public class Planet : MonoBehaviour
     public float m_HillSizeMax   = 1.0f;
     public float m_HillSizeMin   = 0.1f;
 
-    // Internally, the Planet object stores its mesh as a child GameObject:
-    GameObject m_PlanetMesh;
+    // Internally, the Planet object stores its meshes as a child GameObjects:
+    GameObject m_GroundMesh;
+    GameObject m_OceanMesh;
 
     // The subdivided icosahedron that we use to generate our planet is represented as a list
     // of Polygons, and a list of Vertices for those Polygons:
@@ -43,9 +45,10 @@ public class Planet : MonoBehaviour
 
         // By default, everything is colored blue. As we extrude land forms, we'll change their colors to match.
 
-        Color32 colorOcean = new Color32(  0,  80, 220,   0);
-        Color32 colorGrass = new Color32(  0, 220,   0,   0);
-        Color32 colorDirt  = new Color32(180, 140,  20,   0);
+        Color32 colorOcean     = new Color32(  0,  80, 220,   0);
+        Color32 colorGrass     = new Color32(  0, 220,   0,   0);
+        Color32 colorDirt      = new Color32(180, 140,  20,   0);
+        Color32 colorDeepOcean = new Color32(  0,  40, 110,   0);
 
         foreach (Polygon p in m_Polygons)
             p.m_Color = colorOcean;
@@ -55,6 +58,9 @@ public class Planet : MonoBehaviour
         // inside that sphere.
 
         PolySet landPolys = new PolySet();
+        PolySet sides;
+
+        // Grab polygons that are inside random spheres. These will be the basis of our planet's continents.
 
         for(int i = 0; i < m_NumberOfContinents; i++)
         {
@@ -65,9 +71,35 @@ public class Planet : MonoBehaviour
             landPolys.UnionWith(newLand);
         }
 
-        // This is our land now, so color it green. =)
+        // While we're here, let's make a group of oceanPolys. It's pretty simple: Any Polygon that isn't in the landPolys set
+        // must be in the oceanPolys set instead.
 
-        foreach(Polygon landPoly in landPolys)
+        var oceanPolys = new PolySet();
+
+        foreach (Polygon poly in m_Polygons)
+        {
+            if (!landPolys.Contains(poly))
+                oceanPolys.Add(poly);
+        }
+
+        // Let's create the ocean surface as a separate mesh.
+        // First, let's make a copy of the oceanPolys so we can
+        // still use them to also make the ocean floor later.
+
+        var oceanSurface = new PolySet(oceanPolys);
+
+        sides = Inset(oceanSurface, 0.05f);
+        sides.ApplyColor(colorOcean);
+        sides.ApplyAmbientOcclusionTerm(1.0f, 0.0f);
+
+        if (m_OceanMesh != null)
+            Destroy(m_OceanMesh);
+
+        m_OceanMesh = GenerateMesh("Ocean Surface", m_OceanMaterial);
+
+        // Back to land for a while! We start by making it green. =)
+
+        foreach (Polygon landPoly in landPolys)
         {
             landPoly.m_Color = colorGrass;
         }
@@ -76,36 +108,49 @@ public class Planet : MonoBehaviour
         // It also generates a strip of new Polygons to connect the newly raised land
         // back down to the water level. We can color this vertical strip of land brown like dirt.
 
-        PolySet sides = Extrude(landPolys, 0.05f);
+        sides = Extrude(landPolys, 0.05f);
 
-        foreach(Polygon side in sides)
-        {
-            side.m_Color = colorDirt;
-        }
+        sides.ApplyColor(colorDirt);
+
+        sides.ApplyAmbientOcclusionTerm(1.0f, 0.0f);
 
         // Grab additional polygons to generate hills, but only from the set of polygons that are land.
 
-        PolySet hillPolys = new PolySet();
+        PolySet hillPolys = landPolys.RemoveEdges();
 
-        for (int i = 0; i < m_NumberOfHills; i++)
-        {
-            float hillSize = Random.Range(m_HillSizeMin, m_HillSizeMax);
-
-            PolySet newHill = GetPolysInSphere(Random.onUnitSphere, hillSize, landPolys);
-
-            hillPolys.UnionWith(newHill);
-        }
+        sides = Inset(hillPolys, 0.03f);
+        sides.ApplyColor(colorGrass);
+        sides.ApplyAmbientOcclusionTerm(0.0f, 1.0f);
 
         sides = Extrude(hillPolys, 0.05f);
+        sides.ApplyColor(colorDirt);
 
-        foreach (Polygon side in sides)
-        {
-            side.m_Color = colorDirt;
-        }
+        //Hills have dark ambient occlusion on the bottom, and light on top.
+        sides.ApplyAmbientOcclusionTerm(1.0f, 0.0f);
+
+        // Time to return to the oceans.
+
+        sides = Extrude(oceanPolys, -0.02f);
+        sides.ApplyColor(colorOcean);
+        sides.ApplyAmbientOcclusionTerm(0.0f, 1.0f);
+
+        sides = Inset(oceanPolys, 0.02f);
+        sides.ApplyColor(colorOcean);
+        sides.ApplyAmbientOcclusionTerm(1.0f, 0.0f);
+
+        var deepOceanPolys = oceanPolys.RemoveEdges();
+
+        sides = Extrude(deepOceanPolys, -0.05f);
+        sides.ApplyColor(colorDeepOcean);
+
+        deepOceanPolys.ApplyColor(colorDeepOcean);
 
         // Okay, we're done! Let's generate an actual game mesh for this planet.
 
-        GenerateMesh();
+        if (m_GroundMesh != null)
+            Destroy(m_GroundMesh);
+
+        m_GroundMesh = GenerateMesh("Ground Mesh", m_GroundMaterial);
     }
 
     public void InitAsIcosohedron()
@@ -258,18 +303,19 @@ public class Planet : MonoBehaviour
         return new_verts;
     }
 
-    public PolySet StitchPolys(PolySet polys)
+    public PolySet StitchPolys(PolySet polys, out EdgeSet stitchedEdge)
     {
         PolySet stichedPolys = new PolySet();
 
-        var edgeSet       = polys.CreateEdgeSet();
-        var originalVerts = edgeSet.GetUniqueVertices();
+        stichedPolys.m_StitchedVertexThreshold = m_Vertices.Count;
 
+        stitchedEdge      = polys.CreateEdgeSet();
+        var originalVerts = stitchedEdge.GetUniqueVertices();
         var newVerts      = CloneVertices(originalVerts);
 
-        edgeSet.Split(originalVerts, newVerts);
+        stitchedEdge.Split(originalVerts, newVerts);
 
-        foreach (Edge edge in edgeSet)
+        foreach (Edge edge in stitchedEdge)
         {
             // Create new polys along the stitched edge. These
             // will connect the original poly to its former
@@ -311,7 +357,8 @@ public class Planet : MonoBehaviour
 
     public PolySet Extrude(PolySet polys, float height)
     {
-        PolySet stitchedPolys = StitchPolys(polys);
+        EdgeSet stitchedEdge;
+        PolySet stitchedPolys = StitchPolys(polys, out stitchedEdge);
         List<int> verts = polys.GetUniqueVertices();
 
         // Take each vertex in this list of polys, and push it
@@ -328,30 +375,28 @@ public class Planet : MonoBehaviour
         return stitchedPolys;
     }
 
-    public PolySet Inset(PolySet polys, float interpolation)
+    public PolySet Inset(PolySet polys, float insetDistance)
     {
-        PolySet stitchedPolys = StitchPolys(polys);
-        List<int> verts = polys.GetUniqueVertices();
+        EdgeSet stitchedEdge;
+        PolySet stitchedPolys = StitchPolys(polys, out stitchedEdge);
 
-        //Calculate the average center of all the vertices
-        //in these Polygons.
+        Dictionary<int, Vector3> inwardDirections = stitchedEdge.GetInwardDirections(m_Vertices);
 
-        Vector3 center = Vector3.zero;
-        foreach (int vert in verts)
-            center += m_Vertices[vert];
-        center /= verts.Count;
-
-        // Pull each vertex towards the center, then correct
+        // Push each vertex inwards, then correct
         // it's height so that it's as far from the center of
         // the planet as it was before.
 
-        foreach (int vert in verts)
+        foreach (KeyValuePair<int, Vector3> kvp in inwardDirections)
         {
-            Vector3 v = m_Vertices[vert];
-            float height = v.magnitude;
-            v = Vector3.Lerp(v, center, interpolation);
-            v = v.normalized * height;
-            m_Vertices[vert] = v;
+            int     vertIndex       = kvp.Key;
+            Vector3 inwardDirection = kvp.Value;
+
+            Vector3 vertex = m_Vertices[vertIndex];
+            float originalHeight = vertex.magnitude;
+
+            vertex += inwardDirection * insetDistance;
+            vertex  = vertex.normalized * originalHeight;
+            m_Vertices[vertIndex] = vertex;
         }
 
         return stitchedPolys;
@@ -378,15 +423,13 @@ public class Planet : MonoBehaviour
         return newSet;
     }
 
-    public void GenerateMesh()
+    public GameObject GenerateMesh(string name, Material material)
     {
-        if (m_PlanetMesh)
-            Destroy(m_PlanetMesh);
+        GameObject meshObject       = new GameObject(name);
+        meshObject.transform.parent = transform;
 
-        m_PlanetMesh = new GameObject("Planet Mesh");
-
-        MeshRenderer surfaceRenderer = m_PlanetMesh.AddComponent<MeshRenderer>();
-        surfaceRenderer.material     = m_Material;
+        MeshRenderer surfaceRenderer = meshObject.AddComponent<MeshRenderer>();
+        surfaceRenderer.material     = material;
 
         Mesh terrainMesh = new Mesh();
 
@@ -397,6 +440,7 @@ public class Planet : MonoBehaviour
         Vector3[] vertices = new Vector3[vertexCount];
         Vector3[] normals  = new Vector3[vertexCount];
         Color32[] colors   = new Color32[vertexCount];
+        Vector2[] uvs      = new Vector2[vertexCount];
 
         for (int i = 0; i < m_Polygons.Count; i++)
         {
@@ -409,6 +453,10 @@ public class Planet : MonoBehaviour
             vertices[i * 3 + 0] = m_Vertices[poly.m_Vertices[0]];
             vertices[i * 3 + 1] = m_Vertices[poly.m_Vertices[1]];
             vertices[i * 3 + 2] = m_Vertices[poly.m_Vertices[2]];
+
+            uvs[i * 3 + 0] = poly.m_UVs[0];
+            uvs[i * 3 + 1] = poly.m_UVs[1];
+            uvs[i * 3 + 2] = poly.m_UVs[2];
 
             colors[i * 3 + 0] = poly.m_Color;
             colors[i * 3 + 1] = poly.m_Color;
@@ -436,10 +484,13 @@ public class Planet : MonoBehaviour
         terrainMesh.vertices = vertices;
         terrainMesh.normals  = normals;
         terrainMesh.colors32 = colors;
+        terrainMesh.uv       = uvs;
 
         terrainMesh.SetTriangles(indices, 0);
 
-        MeshFilter terrainFilter = m_PlanetMesh.AddComponent<MeshFilter>();
+        MeshFilter terrainFilter = meshObject.AddComponent<MeshFilter>();
         terrainFilter.mesh = terrainMesh;
+
+        return meshObject;
     }
 }

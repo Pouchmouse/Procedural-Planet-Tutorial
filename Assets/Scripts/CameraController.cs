@@ -13,11 +13,14 @@ public class CameraController : MonoBehaviour
     public float m_MinZoom = 2.0f;  // How close to the planet can the camera get?
     public float m_MaxZoom = 10.0f; // ...And how far?
 
-    Vector3 m_PrevMousePosition;
-    float   m_Zoom;
+    Vector3 m_PrevMousePosition; // In order to track how the player is dragging the mouse, we need to store what
+                                 // the previous mouse position was from the last frame.
+
+    float   m_Zoom;              // How zoomed-in the camera is.
 
     private void Start()
     {
+        // Start out by setting the zoom level to be halfway between the min and max.
         m_Zoom = Mathf.Lerp(m_MinZoom, m_MaxZoom, 0.5f);
     }
 
